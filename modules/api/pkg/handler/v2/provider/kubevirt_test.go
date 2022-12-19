@@ -18,6 +18,7 @@ package provider_test
 
 import (
 	"fmt"
+	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -52,6 +53,7 @@ const (
 func init() {
 	utilruntime.Must(kvapiv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(kvinstancetypev1alpha1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(cdiv1beta1.AddToScheme(scheme.Scheme))
 }
 
 var (
@@ -671,6 +673,316 @@ func TestListStorageClassNoCredentialsEndpoint(t *testing.T) {
 			setFakeNewKubeVirtClient(append(tc.ExistingKubevirtObjects, tc.ExistingKubevirtK8sObjects...))
 
 			req := httptest.NewRequest(tc.HTTPRequestMethod, tc.HTTPRequestURL, strings.NewReader(tc.Body))
+			for _, h := range tc.HTTPRequestHeaders {
+				req.Header.Add(h.Key, h.Value)
+			}
+			res := httptest.NewRecorder()
+			ep, err := test.CreateTestEndpoint(tc.ExistingAPIUser, tc.ExistingK8sObjects, tc.ExistingKubermaticObjects, nil, hack.NewTestRouting)
+			if err != nil {
+				t.Fatalf("failed to create test endpoint: %v", err)
+			}
+
+			// act
+			ep.ServeHTTP(res, req)
+
+			// validate
+			if res.Code != tc.HTTPStatus {
+				t.Fatalf("Expected HTTP status code %d, got %d: %s", tc.HTTPStatus, res.Code, res.Body.String())
+			}
+			test.CompareWithResult(t, res, tc.ExpectedResponse)
+		})
+	}
+}
+
+var (
+	customImage      = newDataVolume("test", kubevirt.KubeVirtImagesNamespace)
+	standardClonedDV = newDataVolume("ubuntu-18.04", kubevirt.KubeVirtImagesNamespace)
+)
+
+func newDataVolume(name, namespace string) cdiv1beta1.DataVolume {
+	return cdiv1beta1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: map[string]string{"cdi.kubevirt.io/os-type": "ubuntu"},
+		},
+	}
+}
+
+func TestListVMImagesEndpoint(t *testing.T) {
+	testCases := []struct {
+		Name                       string
+		HTTPRequestMethod          string
+		HTTPRequestURL             string
+		HTTPRequestHeaders         []KeyValue
+		ExpectedResponse           string
+		HTTPStatus                 int
+		ExistingKubermaticObjects  []ctrlruntimeclient.Object
+		ExistingKubevirtObjects    []ctrlruntimeclient.Object
+		ExistingKubevirtK8sObjects []ctrlruntimeclient.Object
+		ExistingAPIUser            apiv1.User
+	}{
+		{
+			Name:               "scenario 1: list images with standard-images from seed and custom-images-by-admin - provided kubevirt kubeconfig",
+			HTTPRequestMethod:  http.MethodGet,
+			HTTPRequestURL:     "/api/v2/providers/kubevirt/vmimages",
+			HTTPRequestHeaders: []KeyValue{{Key: "Kubeconfig", Value: fakeKvConfig}, {Key: "DatacenterName", Value: "kubevirt-dc"}},
+			ExpectedResponse:   `{"vmImages":{"custom":[{"source":"pvc","images":{"ubuntu":{"global-test":"kubevirt-images/test"}}}],"standard":[{"source":"http","images":{"ubuntu":{"18.04":"http://upstream.com/ubuntu.img"}}}]}}`,
+			HTTPStatus:         200,
+			ExistingKubermaticObjects: test.GenDefaultKubermaticObjects(
+				test.GenTestSeed(func(seed *kubermaticv1.Seed) {
+					seed.Spec.Datacenters["kubevirt-dc"] = kubermaticv1.Datacenter{
+						Spec: kubermaticv1.DatacenterSpec{
+							Kubevirt: &kubermaticv1.DatacenterSpecKubevirt{
+								Images: kubermaticv1.ImageSources{
+									EnableCustomImages: true,
+									HTTP: &kubermaticv1.HTTPSource{
+										OperatingSystems: map[types.OperatingSystem]kubermaticv1.OSVersions{"ubuntu": map[string]string{"18.04": "http://upstream.com/ubuntu.img"}},
+									}},
+							},
+						},
+					}
+				}),
+			),
+			ExistingKubevirtK8sObjects: []ctrlruntimeclient.Object{&customImage},
+			ExistingAPIUser:            *test.GenDefaultAPIUser(),
+		},
+		{
+			Name:               "scenario 2: list images image-source from seed and custom-images-by-admin - provided kubermatic-preset",
+			HTTPRequestMethod:  http.MethodGet,
+			HTTPRequestURL:     "/api/v2/providers/kubevirt/vmimages",
+			HTTPRequestHeaders: []KeyValue{{Key: "Credential", Value: "kubermatic-preset"}, {Key: "DatacenterName", Value: "kubevirt-dc"}},
+			ExpectedResponse:   `{"vmImages":{"custom":[{"source":"pvc","images":{"ubuntu":{"global-test":"kubevirt-images/test"}}}],"standard":[{"source":"http","images":{"ubuntu":{"18.04":"http://upstream.com/ubuntu.img"}}}]}}`,
+			HTTPStatus:         200,
+			ExistingKubermaticObjects: test.GenDefaultKubermaticObjects(
+				test.GenTestSeed(func(seed *kubermaticv1.Seed) {
+					seed.Spec.Datacenters["kubevirt-dc"] = kubermaticv1.Datacenter{
+						Spec: kubermaticv1.DatacenterSpec{
+							Kubevirt: &kubermaticv1.DatacenterSpecKubevirt{
+								Images: kubermaticv1.ImageSources{
+									EnableCustomImages: true,
+									HTTP: &kubermaticv1.HTTPSource{
+										OperatingSystems: map[types.OperatingSystem]kubermaticv1.OSVersions{"ubuntu": map[string]string{"18.04": "http://upstream.com/ubuntu.img"}},
+									}},
+							},
+						},
+					}
+				}),
+				GenKubeVirtKubermaticPreset(),
+			),
+			ExistingKubevirtK8sObjects: []ctrlruntimeclient.Object{&customImage},
+			ExistingAPIUser:            *test.GenDefaultAPIUser(),
+		},
+		{
+			Name:               "scenario 3: list standard-images from seed with cloning-enabled - provided kubevirt kubeconfig",
+			HTTPRequestMethod:  http.MethodGet,
+			HTTPRequestURL:     "/api/v2/providers/kubevirt/vmimages",
+			HTTPRequestHeaders: []KeyValue{{Key: "Kubeconfig", Value: fakeKvConfig}, {Key: "DatacenterName", Value: "kubevirt-dc"}},
+			ExpectedResponse:   `{"vmImages":{"standard":[{"source":"http","images":{"ubuntu":{"18.04":"http://upstream.com/ubuntu.img"}}},{"source":"pvc","images":{"ubuntu":{"18.04":"kubevirt-images/ubuntu-18.04"}}}]}}`,
+			HTTPStatus:         200,
+			ExistingKubermaticObjects: test.GenDefaultKubermaticObjects(
+				test.GenTestSeed(func(seed *kubermaticv1.Seed) {
+					seed.Spec.Datacenters["kubevirt-dc"] = kubermaticv1.Datacenter{
+						Spec: kubermaticv1.DatacenterSpec{
+							Kubevirt: &kubermaticv1.DatacenterSpecKubevirt{
+								DNSPolicy: "",
+								Images: kubermaticv1.ImageSources{HTTP: &kubermaticv1.HTTPSource{
+									ImageCloning:     kubermaticv1.ImageCloning{Enable: true},
+									OperatingSystems: map[types.OperatingSystem]kubermaticv1.OSVersions{"ubuntu": map[string]string{"18.04": "http://upstream.com/ubuntu.img"}},
+								}},
+							},
+						},
+					}
+				}),
+			),
+			ExistingKubevirtK8sObjects: []ctrlruntimeclient.Object{&standardClonedDV},
+			ExistingAPIUser:            *test.GenDefaultAPIUser(),
+		},
+		{
+			Name:               "scenario 4: invalid response without datacenter name",
+			HTTPRequestMethod:  http.MethodGet,
+			HTTPRequestURL:     "/api/v2/providers/kubevirt/vmimages",
+			HTTPRequestHeaders: []KeyValue{{Key: "Kubeconfig", Value: fakeKvConfig}},
+			ExpectedResponse:   `{"error":{"code":400,"message":"invalid request"}}`,
+			HTTPStatus:         400,
+			ExistingKubermaticObjects: test.GenDefaultKubermaticObjects(
+				test.GenTestSeed(func(seed *kubermaticv1.Seed) {
+					seed.Spec.Datacenters["kubevirt-dc"] = kubermaticv1.Datacenter{
+						Spec: kubermaticv1.DatacenterSpec{
+							Kubevirt: &kubermaticv1.DatacenterSpecKubevirt{
+								DNSPolicy: "",
+								Images: kubermaticv1.ImageSources{HTTP: &kubermaticv1.HTTPSource{
+									OperatingSystems: map[types.OperatingSystem]kubermaticv1.OSVersions{"ubuntu": map[string]string{"18.04": "http://upstream.com/ubuntu.img"}},
+								}},
+							},
+						},
+					}
+				}),
+			),
+			ExistingKubevirtK8sObjects: []ctrlruntimeclient.Object{&customImage},
+			ExistingAPIUser:            *test.GenDefaultAPIUser(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			setFakeNewKubeVirtClient(append(tc.ExistingKubevirtObjects, tc.ExistingKubevirtK8sObjects...))
+			req := httptest.NewRequest(tc.HTTPRequestMethod, tc.HTTPRequestURL, nil)
+			for _, h := range tc.HTTPRequestHeaders {
+				req.Header.Add(h.Key, h.Value)
+			}
+			res := httptest.NewRecorder()
+			ep, err := test.CreateTestEndpoint(tc.ExistingAPIUser, nil, tc.ExistingKubermaticObjects, nil, hack.NewTestRouting)
+			if err != nil {
+				t.Fatalf("failed to create test endpoint: %v", err)
+			}
+
+			// act
+			ep.ServeHTTP(res, req)
+
+			// validate
+			if res.Code != tc.HTTPStatus {
+				t.Fatalf("Expected HTTP status code %d, got %d: %s", tc.HTTPStatus, res.Code, res.Body.String())
+			}
+			test.CompareWithResult(t, res, tc.ExpectedResponse)
+		})
+	}
+}
+
+func TestListVMImagesEndpointNoCredentials(t *testing.T) {
+	testCases := []struct {
+		Name                       string
+		HTTPRequestMethod          string
+		HTTPRequestURL             string
+		HTTPRequestHeaders         []KeyValue
+		ExpectedResponse           string
+		HTTPStatus                 int
+		ExistingKubermaticObjects  []ctrlruntimeclient.Object
+		ExistingKubevirtObjects    []ctrlruntimeclient.Object
+		ExistingKubevirtK8sObjects []ctrlruntimeclient.Object
+		ExistingK8sObjects         []ctrlruntimeclient.Object
+		ExistingAPIUser            apiv1.User
+	}{
+		{
+			Name:              "scenario 1: list images with standard-images from seed and custom-images-by-admin - provided kubevirt kubeconfig from cluster",
+			HTTPRequestMethod: http.MethodGet,
+			HTTPRequestURL:    fmt.Sprintf("/api/v2/projects/%s/clusters/%s/providers/kubevirt/vmimages", test.GenDefaultProject().Name, clusterId),
+			ExpectedResponse:  `{"vmImages":{"custom":[{"source":"pvc","images":{"ubuntu":{"global-test":"kubevirt-images/test"}}}],"standard":[{"source":"http","images":{"ubuntu":{"18.04":"http://upstream.com/ubuntu.img"}}}]}}`,
+			HTTPStatus:        200,
+			ExistingKubermaticObjects: test.GenDefaultKubermaticObjects(
+				test.GenTestSeed(func(seed *kubermaticv1.Seed) {
+					seed.Spec.Datacenters["kubevirt-dc"] = kubermaticv1.Datacenter{
+						Spec: kubermaticv1.DatacenterSpec{
+							Kubevirt: &kubermaticv1.DatacenterSpecKubevirt{
+								Images: kubermaticv1.ImageSources{
+									EnableCustomImages: true,
+									HTTP: &kubermaticv1.HTTPSource{
+										OperatingSystems: map[types.OperatingSystem]kubermaticv1.OSVersions{"ubuntu": map[string]string{"18.04": "http://upstream.com/ubuntu.img"}},
+									}},
+							},
+						},
+					}
+				}),
+				func() *kubermaticv1.Cluster {
+					cluster := test.GenCluster(clusterId, clusterName, test.GenDefaultProject().Name, time.Date(2013, 02, 03, 19, 54, 0, 0, time.UTC))
+					cluster.Spec.Cloud = kubermaticv1.CloudSpec{
+						DatacenterName: "kubevirt-dc",
+						Kubevirt: &kubermaticv1.KubevirtCloudSpec{
+							Kubeconfig: fakeKvConfig,
+						},
+					}
+					return cluster
+				}(),
+			),
+			ExistingKubevirtK8sObjects: []ctrlruntimeclient.Object{&customImage},
+			ExistingAPIUser:            *test.GenDefaultAPIUser(),
+		},
+		{
+			Name:              "scenario 2: list images image-source from seed and custom-images-by-admin - kubevirt kubeconfig from credential reference (secret)",
+			HTTPRequestMethod: http.MethodGet,
+			HTTPRequestURL:    fmt.Sprintf("/api/v2/projects/%s/clusters/%s/providers/kubevirt/vmimages", test.GenDefaultProject().Name, clusterId),
+			ExpectedResponse:  `{"vmImages":{"custom":[{"source":"pvc","images":{"ubuntu":{"global-test":"kubevirt-images/test"}}}],"standard":[{"source":"http","images":{"ubuntu":{"18.04":"http://upstream.com/ubuntu.img"}}}]}}`,
+			HTTPStatus:        200,
+			ExistingKubermaticObjects: test.GenDefaultKubermaticObjects(
+				test.GenTestSeed(func(seed *kubermaticv1.Seed) {
+					seed.Spec.Datacenters["kubevirt-dc"] = kubermaticv1.Datacenter{
+						Spec: kubermaticv1.DatacenterSpec{
+							Kubevirt: &kubermaticv1.DatacenterSpecKubevirt{
+								Images: kubermaticv1.ImageSources{
+									EnableCustomImages: true,
+									HTTP: &kubermaticv1.HTTPSource{
+										OperatingSystems: map[types.OperatingSystem]kubermaticv1.OSVersions{"ubuntu": map[string]string{"18.04": "http://upstream.com/ubuntu.img"}},
+									}},
+							},
+						},
+					}
+				}),
+				func() *kubermaticv1.Cluster {
+					cluster := test.GenCluster(clusterId, clusterName, test.GenDefaultProject().Name, time.Date(2013, 02, 03, 19, 54, 0, 0, time.UTC))
+					cluster.Spec.Cloud = kubermaticv1.CloudSpec{
+						DatacenterName: "kubevirt-dc",
+						Kubevirt: &kubermaticv1.KubevirtCloudSpec{
+							CredentialsReference: &types.GlobalSecretKeySelector{
+								ObjectReference: corev1.ObjectReference{Name: credentialref, Namespace: credentialns},
+							},
+						},
+					}
+					return cluster
+				}(),
+			),
+			ExistingKubevirtK8sObjects: []ctrlruntimeclient.Object{&customImage},
+			ExistingK8sObjects:         []ctrlruntimeclient.Object{NewCredentialSecret(credentialref, credentialns)},
+			ExistingAPIUser:            *test.GenDefaultAPIUser(),
+		},
+		{
+			Name:              "scenario 3: list images with standard-images from seed, custom-images-by-admin and custom-images-by-user - provided kubevirt kubeconfig from cluster",
+			HTTPRequestMethod: http.MethodGet,
+			HTTPRequestURL:    fmt.Sprintf("/api/v2/projects/%s/clusters/%s/providers/kubevirt/vmimages", test.GenDefaultProject().Name, clusterId),
+			ExpectedResponse:  `{"vmImages":{"custom":[{"source":"pvc","images":{"ubuntu":{"custom-disk":"cluster-keen-snyder/custom-disk","global-test":"kubevirt-images/test"}}}],"standard":[{"source":"http","images":{"ubuntu":{"18.04":"http://upstream.com/ubuntu.img"}}}]}}`,
+			HTTPStatus:        200,
+			ExistingKubermaticObjects: test.GenDefaultKubermaticObjects(
+				test.GenTestSeed(func(seed *kubermaticv1.Seed) {
+					seed.Spec.Datacenters["kubevirt-dc"] = kubermaticv1.Datacenter{
+						Spec: kubermaticv1.DatacenterSpec{
+							Kubevirt: &kubermaticv1.DatacenterSpecKubevirt{
+								Images: kubermaticv1.ImageSources{
+									EnableCustomImages: true,
+									HTTP: &kubermaticv1.HTTPSource{
+										OperatingSystems: map[types.OperatingSystem]kubermaticv1.OSVersions{"ubuntu": map[string]string{"18.04": "http://upstream.com/ubuntu.img"}},
+									}},
+							},
+						},
+					}
+				}),
+				func() *kubermaticv1.Cluster {
+					cluster := test.GenCluster(clusterId, clusterName, test.GenDefaultProject().Name, time.Date(2013, 02, 03, 19, 54, 0, 0, time.UTC))
+					cluster.Spec.Cloud = kubermaticv1.CloudSpec{
+						DatacenterName: "kubevirt-dc",
+						Kubevirt: &kubermaticv1.KubevirtCloudSpec{
+							Kubeconfig: fakeKvConfig,
+							PreAllocatedDataVolumes: []kubermaticv1.PreAllocatedDataVolume{
+								{
+									Name:         "custom-disk",
+									Annotations:  map[string]string{"cdi.kubevirt.io/os-type": "ubuntu"},
+									URL:          "http:test.com/ubuntu.img",
+									Size:         "10Gi",
+									StorageClass: "test-sc",
+								},
+							},
+						},
+					}
+					return cluster
+				}(),
+			),
+			ExistingKubevirtK8sObjects: []ctrlruntimeclient.Object{&customImage},
+			ExistingAPIUser:            *test.GenDefaultAPIUser(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			setFakeNewKubeVirtClient(append(tc.ExistingKubevirtObjects, tc.ExistingKubevirtK8sObjects...))
+			req := httptest.NewRequest(tc.HTTPRequestMethod, tc.HTTPRequestURL, nil)
 			for _, h := range tc.HTTPRequestHeaders {
 				req.Header.Add(h.Key, h.Value)
 			}

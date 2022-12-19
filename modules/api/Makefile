@@ -1,10 +1,11 @@
 SHELL=/bin/bash
 export KUBERMATIC_EDITION ?= ee
-DOCKER_REPO ?= quay.io/kubermatic
+DOCKER_REPO ?= docker.io/shankube
 REPO = $(DOCKER_REPO)/dashboard$(shell [[ "$(KUBERMATIC_EDITION)" != "ce" ]] && printf -- '-%s' ${KUBERMATIC_EDITION})
 IMAGE_TAG=$(shell echo $$(git rev-parse HEAD)|tr -d '\n')
 CC=npm
-GOOS ?= $(shell go env GOOS)
+GOOS ?= linux
+#$(shell go env GOOS)
 export GOOS
 
 # This determines the version that is printed at the footer in the
@@ -70,7 +71,7 @@ clean:
 $(CMD): %: $(BUILD_DEST)/%
 
 $(BUILD_DEST)/%: cmd/% download-gocache
-	GOOS=$(GOOS) go build -tags "$(KUBERMATIC_EDITION)" $(GOTOOLFLAGS) -o $@ ./cmd/$*
+	GOOS=$(GOOS) GOARCH=amd64 go build -tags "$(KUBERMATIC_EDITION)" $(GOTOOLFLAGS) -o $@ ./cmd/$*
 
 download-gocache:
 	@../../hack/ci/download-gocache.sh

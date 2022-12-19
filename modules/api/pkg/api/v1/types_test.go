@@ -723,6 +723,20 @@ func TestKubevirtNodeSpec_MarshalJSON(t *testing.T) {
 			},
 			"{\"flavorName\":\"\",\"flavorProfile\":\"\",\"instancetype\":{\"name\":\"standard-2\",\"kind\":\"VirtualMachineInstancetype\"},\"preference\":null,\"cpus\":\"\",\"memory\":\"\",\"primaryDiskOSImage\":\"test-url\",\"primaryDiskStorageClassName\":\"test-sc\",\"primaryDiskSize\":\"1\",\"secondaryDisks\":null,\"podAffinityPreset\":\"\",\"podAntiAffinityPreset\":\"\",\"nodeAffinityPreset\":{\"Type\":\"\",\"Key\":\"\",\"Values\":null},\"topologySpreadConstraints\":null}",
 		},
+		{
+			"case 14: should marshal when primaryDiskImageSource is provided",
+			&apiv1.KubevirtNodeSpec{
+				Instancetype: &kubevirtv1.InstancetypeMatcher{
+					Name: "standard-2",
+					Kind: "VirtualMachineInstancetype",
+				},
+				PrimaryDiskOSImage:          "test-url",
+				PrimaryDiskStorageClassName: "test-sc",
+				PrimaryDiskSize:             "1",
+				PrimaryDiskImageSource:      "http",
+			},
+			"{\"flavorName\":\"\",\"flavorProfile\":\"\",\"instancetype\":{\"name\":\"standard-2\",\"kind\":\"VirtualMachineInstancetype\"},\"preference\":null,\"cpus\":\"\",\"memory\":\"\",\"primaryDiskOSImage\":\"test-url\",\"primaryDiskStorageClassName\":\"test-sc\",\"primaryDiskSize\":\"1\",\"primaryDiskImageSource\":\"http\",\"secondaryDisks\":null,\"podAffinityPreset\":\"\",\"podAntiAffinityPreset\":\"\",\"nodeAffinityPreset\":{\"Type\":\"\",\"Key\":\"\",\"Values\":null},\"topologySpreadConstraints\":null}",
+		},
 	}
 
 	for _, c := range cases {

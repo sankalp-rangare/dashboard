@@ -70,6 +70,32 @@ func getKvKubeConfigFromCredentials(ctx context.Context, projectProvider provide
 	return base64.StdEncoding.EncodeToString([]byte(kvKubeconfig)), nil
 }
 
+func getKvKubeConfigWithClusterFromCredentials(ctx context.Context, projectProvider provider.ProjectProvider, privilegedProjectProvider provider.PrivilegedProjectProvider,
+	userInfoGetter provider.UserInfoGetter, projectID, clusterID string) (string, *kubermaticv1.Cluster, error) {
+	clusterProvider := ctx.Value(middleware.ClusterProviderContextKey).(provider.ClusterProvider)
+
+	cluster, err := handlercommon.GetCluster(ctx, projectProvider, privilegedProjectProvider, userInfoGetter, projectID, clusterID, &provider.ClusterGetOptions{CheckInitStatus: true})
+	if err != nil {
+		return "", nil, err
+	}
+
+	if cluster.Spec.Cloud.Kubevirt == nil {
+		return "", nil, utilerrors.NewNotFound("cloud spec for ", clusterID)
+	}
+
+	assertedClusterProvider, ok := clusterProvider.(*kubernetesprovider.ClusterProvider)
+	if !ok {
+		return "", nil, utilerrors.New(http.StatusInternalServerError, "failed to assert clusterProvider")
+	}
+
+	secretKeySelector := provider.SecretKeySelectorValueFuncFactory(ctx, assertedClusterProvider.GetSeedClusterAdminRuntimeClient())
+	kvKubeconfig, err := kubevirt.GetCredentialsForCluster(cluster.Spec.Cloud, secretKeySelector)
+	if err != nil {
+		return "", nil, err
+	}
+	return base64.StdEncoding.EncodeToString([]byte(kvKubeconfig)), cluster, nil
+}
+
 func KubeVirtInstancetypesWithClusterCredentialsEndpoint(ctx context.Context, userInfoGetter provider.UserInfoGetter, seedsGetter provider.SeedsGetter, projectProvider provider.ProjectProvider, privilegedProjectProvider provider.PrivilegedProjectProvider,
 	projectID, clusterID, datacenterName string, settingsProvider provider.SettingsProvider) (interface{}, error) {
 	kvKubeconfig, err := getKvKubeConfigFromCredentials(ctx, projectProvider, privilegedProjectProvider, userInfoGetter, projectID, clusterID)
@@ -447,4 +473,33 @@ func (l *preferenceListWrapper) toApi() (*apiv2.VirtualMachinePreferenceList, er
 		}
 	}
 	return res, nil
+}
+
+func KubeVirtVMDiskImages(ctx context.Context, dataCenter *kubermaticv1.DatacenterSpecKubevirt, kubeconfig string, cluster *kubermaticv1.Cluster) (interface{}, error) {
+	client, err := NewKubeVirtClient(kubeconfig, kubevirt.ClientOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return kubevirt.ListVMImages(ctx, dataCenter.Images, client, cluster)
+}
+
+func KubeVirtVMDiskImagesWithClusterCredentialsEndpoint(ctx context.Context, userInfoGetter provider.UserInfoGetter, projectProvider provider.ProjectProvider, privilegedProjectProvider provider.PrivilegedProjectProvider, seedsGetter provider.SeedsGetter,
+	projectID, clusterID string) (interface{}, error) {
+	kvKubeconfig, cluster, err := getKvKubeConfigWithClusterFromCredentials(ctx, projectProvider, privilegedProjectProvider, userInfoGetter, projectID, clusterID)
+	if err != nil {
+		return nil, err
+	}
+
+	userInfo, err := userInfoGetter(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	_, dc, err := provider.DatacenterFromSeedMap(userInfo, seedsGetter, cluster.Spec.Cloud.DatacenterName)
+	if err != nil {
+		return nil, err
+	}
+	if dc.Spec.Kubevirt == nil {
+		return nil, utilerrors.NewBadRequest("datacenter '%s' is not a KubeVirt datacenter", cluster.Spec.Cloud.DatacenterName)
+	}
+	return KubeVirtVMDiskImages(ctx, dc.Spec.Kubevirt, kvKubeconfig, cluster)
 }

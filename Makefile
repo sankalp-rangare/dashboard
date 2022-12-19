@@ -1,10 +1,12 @@
 SHELL=/bin/bash
 export KUBERMATIC_EDITION ?= ee
-DOCKER_REPO ?= quay.io/kubermatic
+DOCKER_REPO ?= docker.io/shankube
 REPO = $(DOCKER_REPO)/dashboard$(shell [[ "$(KUBERMATIC_EDITION)" != "ce" ]] && printf -- '-%s' ${KUBERMATIC_EDITION})
-IMAGE_TAG=$(shell echo $$(git rev-parse HEAD)|tr -d '\n')
+IMAGE_TAG= v2.21.1
+#$(shell echo $$(git rev-parse HEAD)|tr -d '\n')
 CC=npm
-GOOS ?= $(shell go env GOOS)
+GOOS ?= linux
+#$(shell go env GOOS)
 export GOOS
 
 # This determines the version that is printed at the footer in the
@@ -38,7 +40,8 @@ export GO111MODULE = on
 CMD ?= $(notdir $(wildcard ./cmd/*))
 GOBUILDFLAGS ?= -v
 GIT_VERSION = $(shell git describe --tags --always)
-TAGS ?= $(GIT_VERSION)
+TAGS ?= v2.21.1
+#$(GIT_VERSION)
 DOCKERTAGS = $(TAGS) latestbuild
 DOCKER_BUILD_FLAG += $(foreach tag, $(DOCKERTAGS), -t $(REPO):$(tag))
 KUBERMATICCOMMIT ?= $(shell git log -1 --format=%H)

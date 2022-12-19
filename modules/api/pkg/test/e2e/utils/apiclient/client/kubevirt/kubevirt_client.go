@@ -36,9 +36,13 @@ type ClientService interface {
 
 	ListKubeVirtPreferencesNoCredentials(params *ListKubeVirtPreferencesNoCredentialsParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*ListKubeVirtPreferencesNoCredentialsOK, error)
 
+	ListKubevirtStandardVMImagesNoCredentials(params *ListKubevirtStandardVMImagesNoCredentialsParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*ListKubevirtStandardVMImagesNoCredentialsOK, error)
+
 	ListKubevirtStorageClasses(params *ListKubevirtStorageClassesParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*ListKubevirtStorageClassesOK, error)
 
 	ListKubevirtStorageClassesNoCredentials(params *ListKubevirtStorageClassesNoCredentialsParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*ListKubevirtStorageClassesNoCredentialsOK, error)
+
+	ListKubevirtVMImages(params *ListKubevirtVMImagesParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*ListKubevirtVMImagesOK, error)
 
 	SetTransport(transport runtime.ClientTransport)
 }
@@ -196,6 +200,44 @@ func (a *Client) ListKubeVirtPreferencesNoCredentials(params *ListKubeVirtPrefer
 }
 
 /*
+ListKubevirtStandardVMImagesNoCredentials List available VM Images
+*/
+func (a *Client) ListKubevirtStandardVMImagesNoCredentials(params *ListKubevirtStandardVMImagesNoCredentialsParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*ListKubevirtStandardVMImagesNoCredentialsOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewListKubevirtStandardVMImagesNoCredentialsParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "listKubevirtStandardVMImagesNoCredentials",
+		Method:             "GET",
+		PathPattern:        "/api/v2/projects/{project_id}/clusters/{cluster_id}/providers/kubevirt/vmimages",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &ListKubevirtStandardVMImagesNoCredentialsReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*ListKubevirtStandardVMImagesNoCredentialsOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*ListKubevirtStandardVMImagesNoCredentialsDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
 ListKubevirtStorageClasses lists available k8s storage classes in the kubevirt cluster
 */
 func (a *Client) ListKubevirtStorageClasses(params *ListKubevirtStorageClassesParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*ListKubevirtStorageClassesOK, error) {
@@ -268,6 +310,44 @@ func (a *Client) ListKubevirtStorageClassesNoCredentials(params *ListKubevirtSto
 	}
 	// unexpected success response
 	unexpectedSuccess := result.(*ListKubevirtStorageClassesNoCredentialsDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+ListKubevirtVMImages lists available VM disk images
+*/
+func (a *Client) ListKubevirtVMImages(params *ListKubevirtVMImagesParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*ListKubevirtVMImagesOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewListKubevirtVMImagesParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "listKubevirtVMImages",
+		Method:             "GET",
+		PathPattern:        "/api/v2/providers/kubevirt/vmimages",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &ListKubevirtVMImagesReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*ListKubevirtVMImagesOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*ListKubevirtVMImagesDefault)
 	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
 }
 

@@ -48,6 +48,9 @@ type KubevirtNodeSpec struct {
 	// Deprecated: in favor of topology spread constraints
 	PodAntiAffinityPreset string `json:"podAntiAffinityPreset,omitempty"`
 
+	// PrimaryDiskImageSource describes the source of primary disk image.
+	PrimaryDiskImageSource string `json:"primaryDiskImageSource,omitempty"`
+
 	// PrimaryDiskOSImage states the source from which the imported image will be downloaded.
 	// This field contains:
 	// a URL to download an Os Image from a HTTP source.

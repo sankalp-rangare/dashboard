@@ -14656,6 +14656,32 @@
         }
       }
     },
+    "/api/v2/projects/{project_id}/clusters/{cluster_id}/providers/kubevirt/vmimages": {
+      "get": {
+        "description": "List available VM Images",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "kubevirt"
+        ],
+        "operationId": "listKubevirtStandardVMImagesNoCredentials",
+        "responses": {
+          "200": {
+            "description": "VMImageList",
+            "schema": {
+              "$ref": "#/definitions/VMImageList"
+            }
+          },
+          "default": {
+            "description": "errorResponse",
+            "schema": {
+              "$ref": "#/definitions/errorResponse"
+            }
+          }
+        }
+      }
+    },
     "/api/v2/projects/{project_id}/clusters/{cluster_id}/providers/nutanix/categories": {
       "get": {
         "description": "Lists available Nutanix categories",
@@ -22690,6 +22716,32 @@
         }
       }
     },
+    "/api/v2/providers/kubevirt/vmimages": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "kubevirt"
+        ],
+        "summary": "Lists available VM Disk Images.",
+        "operationId": "listKubevirtVMImages",
+        "responses": {
+          "200": {
+            "description": "VMImageList",
+            "schema": {
+              "$ref": "#/definitions/VMImageList"
+            }
+          },
+          "default": {
+            "description": "errorResponse",
+            "schema": {
+              "$ref": "#/definitions/errorResponse"
+            }
+          }
+        }
+      }
+    },
     "/api/v2/providers/nutanix/{dc}/categories": {
       "get": {
         "description": "List category keys from Nutanix",
@@ -28790,6 +28842,9 @@
           "description": "DNSPolicy represents the dns policy for the pod. Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst',\n'Default' or 'None'. Defaults to \"ClusterFirst\". DNS parameters given in DNSConfig will be merged with the\npolicy selected with DNSPolicy.",
           "type": "string",
           "x-go-name": "DNSPolicy"
+        },
+        "images": {
+          "$ref": "#/definitions/ImageSources"
         }
       },
       "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
@@ -31283,6 +31338,24 @@
       },
       "x-go-package": "k8c.io/dashboard/v2/pkg/api/v2"
     },
+    "HTTPSource": {
+      "type": "object",
+      "title": "HTTPSource represents list of standard VM images with http-source.",
+      "properties": {
+        "imageCloning": {
+          "$ref": "#/definitions/ImageCloning"
+        },
+        "operatingSystems": {
+          "description": "OperatingSystems represents list of supported operating-systems.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/OSVersions"
+          },
+          "x-go-name": "OperatingSystems"
+        }
+      },
+      "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
+    },
     "HealthStatus": {
       "type": "string",
       "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
@@ -31513,11 +31586,43 @@
       },
       "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
     },
+    "ImageCloning": {
+      "type": "object",
+      "title": "ImageCloning represents options for kubevirt disk-image cloning.",
+      "properties": {
+        "enable": {
+          "description": "Enable allows to enable/disable the option to clone disk images (defaults to false).",
+          "type": "boolean",
+          "x-go-name": "Enable"
+        },
+        "storageClass": {
+          "description": "StorageClass represents storage-class for preAllocated DataVolumes.",
+          "type": "string",
+          "x-go-name": "StorageClass"
+        }
+      },
+      "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
+    },
     "ImageList": {
       "type": "object",
       "title": "ImageList defines a map of operating system and the image to use.",
       "additionalProperties": {
         "type": "string"
+      },
+      "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
+    },
+    "ImageSources": {
+      "type": "object",
+      "title": "ImageSources represents standard VM Image sources.",
+      "properties": {
+        "enableCustomImages": {
+          "description": "EnableCustomImages allows to enable/disable the usage of custom-disks (defaults to false).",
+          "type": "boolean",
+          "x-go-name": "EnableCustomImages"
+        },
+        "http": {
+          "$ref": "#/definitions/HTTPSource"
+        }
       },
       "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
     },
@@ -32226,7 +32331,7 @@
           "x-go-name": "Kubeconfig"
         },
         "preAllocatedDataVolumes": {
-          "description": "PreAllocatedDataVolumes holds list of preallocated DataVolumes which can be used as reference for DataVolume cloning.",
+          "description": "PreAllocatedDataVolumes holds list of preallocated DataVolumes which can be used as reference for DataVolume cloning.\nPreAllocatedDataVolumes represents custom-images tied to cluster and managed by user.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/PreAllocatedDataVolume"
@@ -32285,6 +32390,11 @@
         },
         "preference": {
           "$ref": "#/definitions/PreferenceMatcher"
+        },
+        "primaryDiskImageSource": {
+          "description": "PrimaryDiskImageSource describes the source of primary disk image.",
+          "type": "string",
+          "x-go-name": "PrimaryDiskImageSource"
         },
         "primaryDiskOSImage": {
           "description": "PrimaryDiskOSImage states the source from which the imported image will be downloaded.\nThis field contains:\na URL to download an Os Image from a HTTP source.\na DataVolume Name as source for DataVolume cloning.",
@@ -33814,6 +33924,14 @@
       },
       "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
     },
+    "OSVersions": {
+      "type": "object",
+      "title": "OSVersions defines a map of OS version and the URL to download the image.",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
+    },
     "ObjectMeta": {
       "description": "ObjectMeta defines the set of fields that objects returned from the API have",
       "type": "object",
@@ -34687,6 +34805,13 @@
     "PreAllocatedDataVolume": {
       "type": "object",
       "properties": {
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "x-go-name": "Annotations"
+        },
         "name": {
           "type": "string",
           "x-go-name": "Name"
@@ -36404,6 +36529,41 @@
         }
       },
       "x-go-package": "k8c.io/kubermatic/v2/pkg/apis/kubermatic/v1"
+    },
+    "VMDiskImage": {
+      "type": "object",
+      "title": "VMDiskImage represents a source of standard VM Image.",
+      "properties": {
+        "images": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/OSVersions"
+          },
+          "x-go-name": "Images"
+        },
+        "source": {
+          "type": "string",
+          "x-go-name": "Source"
+        }
+      },
+      "x-go-package": "k8c.io/dashboard/v2/pkg/api/v2"
+    },
+    "VMImageList": {
+      "type": "object",
+      "title": "VMImageList represents list of standard VM Images.",
+      "properties": {
+        "vmImages": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/VMDiskImage"
+            }
+          },
+          "x-go-name": "VMImages"
+        }
+      },
+      "x-go-package": "k8c.io/dashboard/v2/pkg/api/v2"
     },
     "VMwareCloudDirector": {
       "type": "object",

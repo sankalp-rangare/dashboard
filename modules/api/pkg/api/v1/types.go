@@ -2003,6 +2003,8 @@ type KubevirtNodeSpec struct {
 	// PrimaryDiskSize states the size of the provisioned pvc per node.
 	// required: true
 	PrimaryDiskSize string `json:"primaryDiskSize"`
+	// PrimaryDiskImageSource describes the source of primary disk image.
+	PrimaryDiskImageSource string `json:"primaryDiskImageSource"`
 	// SecondaryDisks contains list of secondary-disks
 	SecondaryDisks []SecondaryDisks `json:"secondaryDisks"`
 	// PodAffinityPreset describes pod affinity scheduling rules
@@ -2078,6 +2080,7 @@ func (spec *KubevirtNodeSpec) MarshalJSON() ([]byte, error) {
 		PrimaryDiskOSImage          string                          `json:"primaryDiskOSImage"`
 		PrimaryDiskStorageClassName string                          `json:"primaryDiskStorageClassName"`
 		PrimaryDiskSize             string                          `json:"primaryDiskSize"`
+		PrimaryDiskImageSource      string                          `json:"primaryDiskImageSource,omitempty"`
 		SecondaryDisks              []SecondaryDisks                `json:"secondaryDisks"`
 		PodAffinityPreset           string                          `json:"podAffinityPreset"`
 		PodAntiAffinityPreset       string                          `json:"podAntiAffinityPreset"`
@@ -2093,6 +2096,7 @@ func (spec *KubevirtNodeSpec) MarshalJSON() ([]byte, error) {
 		PrimaryDiskOSImage:          spec.PrimaryDiskOSImage,
 		PrimaryDiskStorageClassName: spec.PrimaryDiskStorageClassName,
 		PrimaryDiskSize:             spec.PrimaryDiskSize,
+		PrimaryDiskImageSource:      spec.PrimaryDiskImageSource,
 		SecondaryDisks:              spec.SecondaryDisks,
 		PodAffinityPreset:           spec.PodAffinityPreset,
 		PodAntiAffinityPreset:       spec.PodAntiAffinityPreset,

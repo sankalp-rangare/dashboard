@@ -532,6 +532,7 @@ func GetKubevirtProviderConfig(cluster *kubermaticv1.Cluster, nodeSpec apiv1.Nod
 						StorageClassName: providerconfig.ConfigVarString{Value: nodeSpec.Cloud.Kubevirt.PrimaryDiskStorageClassName},
 					},
 					OsImage: providerconfig.ConfigVarString{Value: extractKubeVirtOsImageURLOrDataVolumeNsName(cluster.Status.NamespaceName, nodeSpec.Cloud.Kubevirt.PrimaryDiskOSImage)},
+					Source:  providerconfig.ConfigVarString{Value: nodeSpec.Cloud.Kubevirt.PrimaryDiskImageSource},
 				},
 			},
 			DNSPolicy: providerconfig.ConfigVarString{Value: dc.Spec.Kubevirt.DNSPolicy},

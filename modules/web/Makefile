@@ -1,7 +1,8 @@
 SHELL=/bin/bash
 export KUBERMATIC_EDITION ?= ee
 CC=npm
-GOOS ?= $(shell go env GOOS)
+GOOS ?= linux
+#$(shell go env GOOS)
 export GOOS
 
 # This determines the version that is printed at the footer in the
@@ -63,7 +64,7 @@ build: $(CMD)
 $(CMD): %: $(BUILD_DEST)/%
 
 $(BUILD_DEST)/%: cmd/% download-gocache
-	GOOS=$(GOOS) go build -a -tags "$(KUBERMATIC_EDITION)" $(GOTOOLFLAGS) -o $@ ./cmd/$*
+	GOOS=$(GOOS) GOARCH=amd64 go build -a -tags "$(KUBERMATIC_EDITION)" $(GOTOOLFLAGS) -o $@ ./cmd/$*
 
 download-gocache:
 	@../../hack/ci/download-gocache.sh

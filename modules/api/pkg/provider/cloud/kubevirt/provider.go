@@ -31,6 +31,8 @@ import (
 const (
 	// FinalizerNamespace will ensure the deletion of the dedicated namespace.
 	FinalizerNamespace = "kubermatic.k8c.io/cleanup-kubevirt-namespace"
+	// KubeVirtImagesNamespace namespace contains globally available custom images and cached standard images.
+	KubeVirtImagesNamespace = "kubevirt-images"
 )
 
 type kubevirt struct {

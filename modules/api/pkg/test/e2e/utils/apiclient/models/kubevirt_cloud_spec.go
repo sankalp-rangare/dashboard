@@ -30,6 +30,7 @@ type KubevirtCloudSpec struct {
 	Kubeconfig string `json:"kubeconfig,omitempty"`
 
 	// PreAllocatedDataVolumes holds list of preallocated DataVolumes which can be used as reference for DataVolume cloning.
+	// PreAllocatedDataVolumes represents custom-images tied to cluster and managed by user.
 	PreAllocatedDataVolumes []*PreAllocatedDataVolume `json:"preAllocatedDataVolumes"`
 
 	// credentials reference

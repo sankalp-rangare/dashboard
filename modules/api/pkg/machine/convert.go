@@ -311,6 +311,7 @@ func GetAPIV2NodeCloudSpec(machineSpec clusterv1alpha1.MachineSpec) (*apiv1.Node
 			PrimaryDiskOSImage:          config.VirtualMachine.Template.PrimaryDisk.OsImage.Value,
 			PrimaryDiskStorageClassName: config.VirtualMachine.Template.PrimaryDisk.StorageClassName.Value,
 			PrimaryDiskSize:             config.VirtualMachine.Template.PrimaryDisk.Size.Value,
+			PrimaryDiskImageSource:      config.VirtualMachine.Template.PrimaryDisk.Source.Value,
 			NodeAffinityPreset: apiv1.NodeAffinityPreset{
 				Type: config.Affinity.NodeAffinityPreset.Type.Value,
 				Key:  config.Affinity.NodeAffinityPreset.Key.Value,

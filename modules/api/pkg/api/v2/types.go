@@ -17,6 +17,7 @@ limitations under the License.
 package v2
 
 import (
+	"github.com/kubermatic/machine-controller/pkg/providerconfig/types"
 	"time"
 
 	constrainttemplatesv1 "github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1"
@@ -1611,6 +1612,9 @@ const (
 
 	// namespaced resources (KubeVirt VirtualMachineInstancetype).
 	InstancetypeKubermatic VirtualMachineInstancetypeCategory = "kubermatic"
+
+	Standard    VMImageCategory = "standard"
+	CustomImage VMImageCategory = "custom"
 )
 
 // VirtualMachineInstanctype represents a KubeVirt VirtualMachineInstanctype
@@ -1641,6 +1645,22 @@ type StorageClassList []StorageClass
 // swagger:model StorageClass
 type StorageClass struct {
 	Name string `json:"name"`
+}
+
+// StandardVMImageCategory defines category of standard VM Images.
+type VMImageCategory string
+
+// VMImageList represents list of standard VM Images.
+// swagger:model VMImageList
+type VMImageList struct {
+	VMImages map[VMImageCategory][]*VMDiskImage `json:"vmImages"`
+}
+
+// VMDiskImage represents a source of standard VM Image.
+// swagger:model VMDiskImage
+type VMDiskImage struct {
+	Source string                                            `json:"source"`
+	Images map[types.OperatingSystem]kubermaticv1.OSVersions `json:"images"`
 }
 
 // CNIVersions is a list of versions for a CNI Plugin

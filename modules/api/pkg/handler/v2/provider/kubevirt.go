@@ -69,6 +69,21 @@ type KubeVirtListInstancesNoCredentialReq struct {
 	DatacenterName string
 }
 
+// KubeVirtStandardImagesReq represent a request for KubeVirt Standard Images list.
+// swagger:parameters listKubevirtStandardVMImages
+type KubeVirtStandardImagesReq struct {
+	KubeVirtGenericReq
+	// in: header
+	// DatacenterName datacenter name
+	DatacenterName string
+}
+
+// KubeVirtStandardImagesNoCredentialReq represent a request for KubeVirt Standard Images list with cluster-credentials.
+// swagger:parameters listKubevirtStandardVMImages
+type KubeVirtStandardImagesNoCredentialReq struct {
+	cluster.GetClusterReq
+}
+
 func getKubeconfig(ctx context.Context, kubeconfig string, credential string, presetsProvider provider.PresetProvider, userInfoGetter provider.UserInfoGetter) (string, error) {
 	userInfo, err := userInfoGetter(ctx, "")
 	if err != nil {
@@ -220,6 +235,73 @@ func DecodeKubeVirtListInstancesNoCredentialReq(c context.Context, r *http.Reque
 
 	req.ProjectReq = pr.(common.ProjectReq)
 	req.DatacenterName = r.Header.Get("DatacenterName")
+
+	return req, nil
+}
+
+// KubeVirtVMDisksImages list standard and custom Disk Images (provided credentials).
+func KubeVirtVMDisksImages(presetsProvider provider.PresetProvider, userInfoGetter provider.UserInfoGetter, seedsGetter provider.SeedsGetter) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req, ok := request.(KubeVirtStandardImagesReq)
+		if !ok {
+			return "", utilerrors.NewBadRequest("invalid request")
+		}
+		userInfo, err := userInfoGetter(ctx, "")
+		if err != nil {
+			return nil, err
+		}
+		_, dc, err := provider.DatacenterFromSeedMap(userInfo, seedsGetter, req.DatacenterName)
+		if err != nil {
+			return nil, err
+		}
+		if dc.Spec.Kubevirt == nil {
+			return nil, utilerrors.NewBadRequest("datacenter '%s' is not a KubeVirt datacenter", req.DatacenterName)
+		}
+		kubeconfig, err := getKubeconfig(ctx, req.Kubeconfig, req.Credential, presetsProvider, userInfoGetter)
+		if err != nil {
+			return nil, err
+		}
+
+		return providercommon.KubeVirtVMDiskImages(ctx, dc.Spec.Kubevirt, kubeconfig, nil)
+	}
+}
+
+// KubeVirtVMDisksImagesWithClusterCredentialsEndpoint list standard, custom and local Disk Images (provided cluster-credentials).
+func KubeVirtVMDisksImagesWithClusterCredentialsEndpoint(projectProvider provider.ProjectProvider, privilegedProjectProvider provider.PrivilegedProjectProvider, presetsProvider provider.PresetProvider, userInfoGetter provider.UserInfoGetter, seedsGetter provider.SeedsGetter) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req, ok := request.(KubeVirtStandardImagesNoCredentialReq)
+		if !ok {
+			return "", utilerrors.NewBadRequest("invalid request")
+		}
+
+		return providercommon.KubeVirtVMDiskImagesWithClusterCredentialsEndpoint(ctx, userInfoGetter, projectProvider, privilegedProjectProvider, seedsGetter, req.ProjectID, req.ClusterID)
+	}
+}
+
+func DecodeKubeVirtStandardImagesReq(c context.Context, r *http.Request) (interface{}, error) {
+	var req KubeVirtStandardImagesReq
+	req.DatacenterName = r.Header.Get("DatacenterName")
+	if req.DatacenterName == "" {
+		return nil, utilerrors.NewBadRequest("invalid request")
+	}
+	req.Kubeconfig = r.Header.Get("Kubeconfig")
+	req.Credential = r.Header.Get("Credential")
+	return req, nil
+}
+
+func DecodeKubeVirtStandardImagesReqWithClusterCredential(c context.Context, r *http.Request) (interface{}, error) {
+	var req KubeVirtStandardImagesNoCredentialReq
+	clusterID, err := common.DecodeClusterID(c, r)
+	if err != nil {
+		return nil, err
+	}
+	req.ClusterID = clusterID
+
+	pr, err := common.DecodeProjectRequest(c, r)
+	if err != nil {
+		return nil, err
+	}
+	req.ProjectReq = pr.(common.ProjectReq)
 
 	return req, nil
 }
